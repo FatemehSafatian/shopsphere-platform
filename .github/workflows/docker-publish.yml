@@ -3,7 +3,7 @@ name: Build and Push Docker Image
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:   # lets you run it manually from the Actions tab
+  workflow_dispatch:  
 
 jobs:
   build-and-push:
@@ -25,14 +25,14 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: .                # folder that contains your Dockerfile
-          file: ./Dockerfile        # change if your Dockerfile is elsewhere
+          context: ./ShopSphere               
+          file: ./ShopSphere/ShopSphere.Client/Dockerfile        
           push: true
           tags: |
             fsafa/shopsphere-app:latest
             fsafa/shopsphere-app:${{ github.sha }}
 
-      # ---------- CD: tell Azure Web App to run the new image ----------
+    
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
