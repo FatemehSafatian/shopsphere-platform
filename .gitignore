@@ -1,0 +1,15 @@
+# Visual Studio temporary files and build output
+.vs/
+bin/
+obj/
+
+# User-specific files
+*.user
+*.useros
+*.suo
+*.wsuo
+
+# NuGet / Build Caches
+*.nuget.g.props
+*.nuget.g.targets
+project.assets.json
