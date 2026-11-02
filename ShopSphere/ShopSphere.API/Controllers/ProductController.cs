@@ -1,5 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
+using MongoDB.Driver;
 using ShopSphere.API.Data;
 using ShopSphere.API.Models;
 
@@ -9,17 +9,18 @@ namespace ShopSphere.API.Controllers
     [ApiController]
     public class ProductController : ControllerBase
     {
+        public ProductContext _Context { get; }
         public ILogger<ProductController> Logger { get; }
 
-        public ProductController(ILogger<ProductController> logger)
+        public ProductController(ProductContext context, ILogger<ProductController> logger)
         {
+            _Context = context;
             Logger = logger;
         }
 
         [HttpGet]
-        public IEnumerable<Product> Get() {
-            return ProductContext.Products;
-            return ProductContext.Products;
+        public async Task<IEnumerable<Product>> Get() {
+            return await _Context.Products.Find(p=>true).ToListAsync();
         }
     }
 }

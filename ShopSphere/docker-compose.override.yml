@@ -1,0 +1,22 @@
+services:
+  shopsphere.api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+    ports:
+      - "8000:8080"
+
+  shopsphere.client:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+    ports:
+      -  "8001:8080"
+
+  shopping.db:
+    container_name: shoppingdb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - ${WEBAPP_STORAGE_HOME}/site:/data/db

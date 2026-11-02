@@ -1,0 +1,15 @@
+services:
+  shopsphere.api:
+    image: ${DOCKER_REGISTRY-}shopsphereapi
+    build:
+      context: .
+      dockerfile: ShopSphere.API/Dockerfile
+
+  shopsphere.client:
+    image: ${DOCKER_REGISTRY-}shopsphereclient
+    build:
+      context: .
+      dockerfile: ShopSphere.Client/Dockerfile
+
+  shopping.db: 
+    image: mongo
