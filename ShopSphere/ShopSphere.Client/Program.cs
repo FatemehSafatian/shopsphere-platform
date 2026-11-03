@@ -5,7 +5,7 @@ builder.Services.AddControllersWithViews();
 
 builder.Services.AddHttpClient("ShopSphereApi", client =>
 {
-    client.BaseAddress = new Uri(ConfigurationBinder[]);
+    client.BaseAddress = new Uri(builder.Configuration["ShopSphereAPIUrl"]);
 });
 
 var app = builder.Build();

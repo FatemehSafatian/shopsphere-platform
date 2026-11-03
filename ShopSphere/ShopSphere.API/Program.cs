@@ -7,6 +7,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<IProductContext, ProductContext>();
+builder.Services.AddScoped<ProductContext>();
 
 var app = builder.Build();
 
