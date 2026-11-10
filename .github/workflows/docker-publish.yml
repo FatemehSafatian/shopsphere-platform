@@ -32,7 +32,16 @@ jobs:
             fsafa/shopsphere-app:latest
             fsafa/shopsphere-app:${{ github.sha }}
 
-    
+      - name: Build and push API
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ShopSphere
+          file: ./ShopSphere/ShopSphere.API/Dockerfile
+          push: true
+          tags: |
+            fsafa/shopsphere-api:latest
+            fsafa/shopsphere-api:${{ github.sha }}
+            
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
