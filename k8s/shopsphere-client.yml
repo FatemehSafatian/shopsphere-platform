@@ -1,26 +1,27 @@
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: shoppingapi-deployment
+  name: shopsphereclient-deployment
   labels:
-    app: shoppingapi
+    app: shopsphereclient
 
 spec:
   replicas: 1
 
   selector:
     matchLabels:
-      app: shoppingapi
+      app: shopsphereclient
 
   template:
     metadata:
       labels:
-        app: shoppingapi
+        app: shopsphereclient
 
     spec:
       containers:
-        - name: shoppingapi
-          image: fsafa/shopsphere-api:latest
+        - name: shopsphereclient
+          image: fsafa/shopsphere-app:latest
           imagePullPolicy: Always
 
           ports:
@@ -33,11 +34,11 @@ spec:
             - name: ASPNETCORE_URLS
               value: "http://+:8080"
 
-            - name: DatabaseSettings__ConnectionString
+            - name: ShopSphereAPIUrl
               valueFrom:
-                secretKeyRef:
-                  name: mongo-secret
-                  key: mongo-connection-string
+                configMapKeyRef:
+                  name: shopsphereclient-configmap
+                  key: shoppingapi_url
 
           resources:
             requests:
@@ -51,16 +52,15 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: shoppingapi-service
+  name: shopsphereclient-service
 
 spec:
-  type: NodePort
-
+  type: LoadBalancer
   selector:
-    app: shoppingapi
+    app: shopsphereclient
 
   ports:
     - protocol: TCP
-      port: 8000
+      port: 8001
       targetPort: 8080
-      nodePort: 31000
+      nodePort: 32000
