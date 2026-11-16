@@ -1,0 +1,53 @@
+# ============================================
+# ShopSphere on AKS - Azure CLI commands
+# Run in Azure Cloud Shell (Bash) - no az login needed
+# ============================================
+
+# 0. One-time setup: register resource providers (new subscriptions need this)
+az provider register --namespace Microsoft.ContainerRegistry
+az provider register --namespace Microsoft.ContainerService
+az provider register --namespace Microsoft.Compute
+az provider register --namespace Microsoft.Network
+az provider register --namespace Microsoft.OperationalInsights
+
+# Check status (wait until "Registered")
+az provider show --namespace Microsoft.ContainerRegistry --query registrationState -o tsv
+
+# 1. Create a Resource Group
+# NOTE: westeurope rejected new customers, so using italynorth
+az group create --name shopsphere-aks-rg --location italynorth
+
+# 2. Create Azure Container Registry (name must be globally unique, lowercase, no dashes)
+az acr create --resource-group shopsphere-aks-rg --name shopsphereacrfs --sku Basic
+
+# Show registries and their login server
+az acr list -o table
+
+# 3. Enable admin user on ACR (needed for imagePullSecret)
+az acr update -n shopsphereacrfs --admin-enabled true
+
+# Show ACR credentials (NEVER commit these!)
+az acr credential show -n shopsphereacrfs
+
+# 4. Get the project code into Cloud Shell
+cd ~
+git clone https://github.com/FatemehSafatian/shopsphere-platform.git
+cd ~/shopsphere-platform/ShopSphere
+
+# 5. Build images in Azure and push to ACR (Cloud Shell has no Docker)
+az acr build --registry shopsphereacrfs --image shopsphere-api:v1 --file ShopSphere.API/Dockerfile .
+az acr build --registry shopsphereacrfs --image shopsphere-client:v1 --file ShopSphere.Client/Dockerfile .
+
+# Alternative (if ACR Tasks is not allowed): import images built by GitHub Actions from Docker Hub
+# az acr import --name shopsphereacrfs --source docker.io/fsafa/shopsphere-api:latest --image shopsphere-api:v1
+# az acr import --name shopsphereacrfs --source docker.io/fsafa/shopsphere-app:latest --image shopsphere-client:v1
+
+# Verify images in ACR
+az acr repository list -n shopsphereacrfs -o table
+az acr repository show-tags -n shopsphereacrfs --repository shopsphere-api -o table
+
+# ============================================
+# CLEANUP - run at the end of EVERY session!
+# Deletes the resource group and everything inside it (ACR, AKS, ...)
+# ============================================
+az group delete --name shopsphere-aks-rg --yes --no-wait
