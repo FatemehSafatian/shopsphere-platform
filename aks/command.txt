@@ -14,7 +14,7 @@ az provider register --namespace Microsoft.OperationalInsights
 az provider show --namespace Microsoft.ContainerRegistry --query registrationState -o tsv
 
 # 1. Create a Resource Group
-# NOTE: westeurope rejected new customers, so using italynorth
+
 az group create --name shopsphere-aks-rg --location italynorth
 
 # 2. Create Azure Container Registry (name must be globally unique, lowercase, no dashes)
@@ -45,6 +45,42 @@ az acr build --registry shopsphereacrfs --image shopsphere-client:v1 --file Shop
 # Verify images in ACR
 az acr repository list -n shopsphereacrfs -o table
 az acr repository show-tags -n shopsphereacrfs --repository shopsphere-api -o table
+
+# =====================================================================
+# 6) Variables for the AKS steps (re-run these in every new Cloud Shell session)
+# =====================================================================
+RG=shopsphere-aks-rg
+LOCATION=italynorth
+ACR_NAME=shopsphereacrfs
+AKS=shopsphere-aks
+NODE_SIZE=Standard_D2s_v6
+
+# =====================================================================
+# 7) (Optional) Check which VM size can be used for the AKS node
+#    A size is usable only if:
+#      - it exists in the region (list-skus, Restrictions = None)
+#      - its family has quota > 0 (list-usage)
+#    Result for my subscription in italynorth:
+#      D2s_v5 -> exists, but DSv5 family quota = 0  -> NOT usable
+#      D2s_v6 -> exists, Dsv6 family quota = 10     -> usable
+#      B2s    -> not offered in italynorth; B2s_v2 has quota 0
+# =====================================================================
+az vm list-skus --location italynorth --resource-type virtualMachines --size Standard_D2s_v --output table
+az vm list-usage --location italynorth --output table | awk 'NR<=2 || $NF > 0'
+
+# =====================================================================
+# 8) Create the AKS cluster (1 node, free tier) 
+# =====================================================================
+az aks create \
+  --resource-group shopsphere-aks-rg \
+  --name shopsphere-aks \
+  --location italynorth \
+  --node-count 1 \
+  --node-vm-size Standard_D2s_v6 \
+  --node-osdisk-size 30 \
+  --tier free \
+  --generate-ssh-keys
+
 
 # ============================================
 # CLEANUP - run at the end of EVERY session!
