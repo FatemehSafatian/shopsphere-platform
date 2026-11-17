@@ -1,9 +1,20 @@
-# ============================================
+# =====================================================================
 # ShopSphere on AKS - Azure CLI commands
 # Run in Azure Cloud Shell (Bash) - no az login needed
-# ============================================
+# =====================================================================
+#
+# CLOUD SHELL NOTES (read first)
+# - My Cloud Shell is EPHEMERAL: every restart / idle timeout (~20 min) wipes ~
+#   (repo clone, ~/.kube/config, shell variables). Azure resources are NOT affected.
+#   After a reconnect: re-run step 0b (variables), step 4 (git clone) and step 9 (get-credentials).
+# - "Timeout waiting for token from portal" -> click Restart in the Cloud Shell toolbar
+#   (or sign out / sign in to the portal).
+#   Do NOT run az logout / az login here: device-code login is blocked by Security Defaults.
+# - Bash commands: "az ..." talks to Azure, "kubectl ..." talks to the Kubernetes cluster.
 
-# 0. One-time setup: register resource providers (new subscriptions need this)
+# =====================================================================
+# 0a) One-time setup: register resource providers (new subscriptions need this)
+# =====================================================================
 az provider register --namespace Microsoft.ContainerRegistry
 az provider register --namespace Microsoft.ContainerService
 az provider register --namespace Microsoft.Compute
@@ -13,47 +24,61 @@ az provider register --namespace Microsoft.OperationalInsights
 # Check status (wait until "Registered")
 az provider show --namespace Microsoft.ContainerRegistry --query registrationState -o tsv
 
-# 1. Create a Resource Group
+# =====================================================================
+# 0b) Variables (re-run in EVERY new Cloud Shell session)
+# =====================================================================
+RG=shopsphere-aks-rg
+LOCATION=italynorth            # westeurope rejected new customers
+ACR_NAME=shopsphereacrfs
+AKS=shopsphere-aks
+NODE_SIZE=Standard_D2s_v6      # see step 7 for why
 
-az group create --name shopsphere-aks-rg --location italynorth
+# =====================================================================
+# 1) Create a Resource Group
+# =====================================================================
+az group create --name $RG --location $LOCATION
 
-# 2. Create Azure Container Registry (name must be globally unique, lowercase, no dashes)
-az acr create --resource-group shopsphere-aks-rg --name shopsphereacrfs --sku Basic
+# =====================================================================
+# 2) Create Azure Container Registry (name must be globally unique, lowercase, no dashes)
+# =====================================================================
+az acr create --resource-group $RG --name $ACR_NAME --sku Basic
 
 # Show registries and their login server
 az acr list -o table
 
-# 3. Enable admin user on ACR (needed for imagePullSecret)
-az acr update -n shopsphereacrfs --admin-enabled true
+# =====================================================================
+# 3) Enable admin user on ACR (needed for imagePullSecret)
+# =====================================================================
+az acr update -n $ACR_NAME --admin-enabled true
 
 # Show ACR credentials (NEVER commit these!)
-az acr credential show -n shopsphereacrfs
+# az acr credential show -n $ACR_NAME
 
-# 4. Get the project code into Cloud Shell
+# =====================================================================
+# 4) Get the project code into Cloud Shell
+# =====================================================================
 cd ~
 git clone https://github.com/FatemehSafatian/shopsphere-platform.git
 cd ~/shopsphere-platform/ShopSphere
+# If already cloned: cd ~/shopsphere-platform && git pull
 
-# 5. Build images in Azure and push to ACR (Cloud Shell has no Docker)
-az acr build --registry shopsphereacrfs --image shopsphere-api:v1 --file ShopSphere.API/Dockerfile .
-az acr build --registry shopsphereacrfs --image shopsphere-client:v1 --file ShopSphere.Client/Dockerfile .
+# =====================================================================
+# 5) Build images in Azure and push to ACR (Cloud Shell has no Docker)
+# =====================================================================
+az acr build --registry $ACR_NAME --image shopsphere-api:v1 --file ShopSphere.API/Dockerfile .
+az acr build --registry $ACR_NAME --image shopsphere-client:v1 --file ShopSphere.Client/Dockerfile .
 
 # Alternative (if ACR Tasks is not allowed): import images built by GitHub Actions from Docker Hub
-# az acr import --name shopsphereacrfs --source docker.io/fsafa/shopsphere-api:latest --image shopsphere-api:v1
-# az acr import --name shopsphereacrfs --source docker.io/fsafa/shopsphere-app:latest --image shopsphere-client:v1
+# az acr import --name $ACR_NAME --source docker.io/fsafa/shopsphere-api:latest --image shopsphere-api:v1
+# az acr import --name $ACR_NAME --source docker.io/fsafa/shopsphere-app:latest --image shopsphere-client:v1
 
 # Verify images in ACR
-az acr repository list -n shopsphereacrfs -o table
-az acr repository show-tags -n shopsphereacrfs --repository shopsphere-api -o table
+az acr repository list -n $ACR_NAME -o table
+az acr repository show-tags -n $ACR_NAME --repository shopsphere-api -o table
 
 # =====================================================================
-# 6) Variables for the AKS steps (re-run these in every new Cloud Shell session)
+# 6) (reserved)
 # =====================================================================
-RG=shopsphere-aks-rg
-LOCATION=italynorth
-ACR_NAME=shopsphereacrfs
-AKS=shopsphere-aks
-NODE_SIZE=Standard_D2s_v6
 
 # =====================================================================
 # 7) (Optional) Check which VM size can be used for the AKS node
@@ -63,27 +88,114 @@ NODE_SIZE=Standard_D2s_v6
 #    Result for my subscription in italynorth:
 #      D2s_v5 -> exists, but DSv5 family quota = 0  -> NOT usable
 #      D2s_v6 -> exists, Dsv6 family quota = 10     -> usable
-#      B2s    -> not offered in italynorth; B2s_v2 has quota 0
+#      B2s    -> not offered in italynorth; B2s_v2 (Bsv2 family) has quota 0
+#    Name decoding: Standard_D2s_v6 = family D (general purpose), 2 vCPUs,
+#                   s = premium SSD support, v6 = hardware generation
+#    Tip: az vm list-skus without --resource-type is VERY slow.
 # =====================================================================
-az vm list-skus --location italynorth --resource-type virtualMachines --size Standard_D2s_v --output table
-az vm list-usage --location italynorth --output table | awk 'NR<=2 || $NF > 0'
+az vm list-skus --location $LOCATION --resource-type virtualMachines --size Standard_D2s_v --output table
+az vm list-usage --location $LOCATION --output table | awk 'NR<=2 || $NF > 0'
 
 # =====================================================================
-# 8) Create the AKS cluster (1 node, free tier) 
+# 8) Create the AKS cluster (1 node, free tier) - takes ~5-10 min
+#    Cost (approx.): ~0.15-0.20 USD/hour for node + disk + load balancer + ACR
+#    Success = "provisioningState": "Succeeded" in the JSON output
 # =====================================================================
 az aks create \
-  --resource-group shopsphere-aks-rg \
-  --name shopsphere-aks \
-  --location italynorth \
+  --resource-group $RG \
+  --name $AKS \
+  --location $LOCATION \
   --node-count 1 \
-  --node-vm-size Standard_D2s_v6 \
+  --node-vm-size $NODE_SIZE \
   --node-osdisk-size 30 \
   --tier free \
   --generate-ssh-keys
 
+# =====================================================================
+# 9) Connect kubectl to the cluster ("pair the remote control with the TV")
+#    Downloads server address + credentials into ~/.kube/config
+#    Without this, kubectl fails with "the server has asked for the client to provide credentials"
+# =====================================================================
+az aks get-credentials --resource-group $RG --name $AKS --overwrite-existing
 
-# ============================================
+kubectl config get-contexts    # shopsphere-aks should have * in CURRENT
+kubectl get nodes              # expect 1 node, STATUS = Ready
+
+# =====================================================================
+# 10) Allow AKS to pull images from the private ACR
+#     Option A (course): imagePullSecret with ACR admin credentials
+#     The password goes into a variable - it is never printed or committed
+# =====================================================================
+ACR_PASSWORD=$(az acr credential show --name $ACR_NAME --query "passwords[0].value" --output tsv)
+
+kubectl create secret docker-registry acr-secret \
+  --docker-server=$ACR_NAME.azurecr.io \
+  --docker-username=$ACR_NAME \
+  --docker-password="$ACR_PASSWORD"
+
+kubectl get secret acr-secret
+
+#     Option B (production way): attach ACR via managed identity - no secret needed
+# az aks update --resource-group $RG --name $AKS --attach-acr $ACR_NAME
+
+# =====================================================================
+# 11) Deploy the app
+#     Shared files (same for local and AKS): mongo-secret, mongo, client configmap
+# =====================================================================
+cd ~/shopsphere-platform
+
+kubectl apply -f k8s/mongo-secret.yaml
+kubectl apply -f k8s/mongo.yml
+kubectl apply -f k8s/shopsphere-client-configmap.yml
+
+# --- Option A: images from ACR (k8s/aks/ manifests) ---
+#     Changes vs local files: ACR image + fixed tag v1, imagePullSecrets: acr-secret,
+#     API Service = ClusterIP, client Service = LoadBalancer on port 80
+kubectl apply -f k8s/aks/shopsphere-api.yml
+kubectl apply -f k8s/aks/shopsphere-client.yml
+
+# --- Option B: images from Docker Hub (local manifests) - this is what ran on 2026-11-17 ---
+# kubectl apply -f k8s/shopsphere-api.yml
+# kubectl apply -f k8s/shopsphere-client.yml
+#     The client Service uses port 8001, which the company firewall blocks -> switch to port 80:
+# kubectl patch svc shopsphereclient-service --type=json \
+#   -p='[{"op":"replace","path":"/spec/ports/0/port","value":80}]'
+
+# =====================================================================
+# 12) Check and open the app
+# =====================================================================
+kubectl get pods -w        # wait until all 3 pods are Running, then Ctrl+C
+kubectl get svc -w         # wait for EXTERNAL-IP of shopsphereclient-service, then Ctrl+C
+kubectl get all            # overview (good screenshot for the README)
+
+# Which image is each pod running? (ACR or Docker Hub)
+kubectl get pods -o custom-columns=NAME:.metadata.name,IMAGE:.spec.containers[0].image
+
+# Open in the browser:  http://<EXTERNAL-IP>   (use http, not https)
+
+# =====================================================================
+# Troubleshooting
+# =====================================================================
+# Test from Cloud Shell (no company firewall in between):
+# curl -I http://<EXTERNAL-IP>
+#   200 OK here but not in the browser -> the app is fine, the network blocks the port
+#   (company firewall allows only standard ports like 80/443)
+#
+# kubectl describe pod <pod-name>     # read the Events section at the bottom
+# kubectl logs <pod-name>
+# kubectl logs deployment/shopsphereapi-deployment
+#
+# ImagePullBackOff  -> wrong image name/tag or missing/wrong acr-secret
+# Pending           -> not enough CPU/memory on the node (lower resources.requests)
+# CrashLoopBackOff  -> app error, e.g. wrong Mongo connection string -> check logs
+
+# =====================================================================
 # CLEANUP - run at the end of EVERY session!
-# Deletes the resource group and everything inside it (ACR, AKS, ...)
-# ============================================
-az group delete --name shopsphere-aks-rg --yes --no-wait
+# Deletes the resource group and everything inside it (ACR, AKS, MC_ node group, ...)
+# Does not need kubectl to be connected
+# =====================================================================
+az group delete --name $RG --yes --no-wait
+kubectl config delete-context $AKS
+
+# A few minutes later: neither shopsphere-aks-rg nor MC_shopsphere-aks-rg_... should be listed
+az group list --output table
