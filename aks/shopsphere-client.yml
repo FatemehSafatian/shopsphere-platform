@@ -1,0 +1,67 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shopsphereclient-deployment
+  labels:
+    app: shopsphereclient
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: shopsphereclient
+
+  template:
+    metadata:
+      labels:
+        app: shopsphereclient
+
+    spec:
+      imagePullSecrets:        
+        - name: acr-secret
+      containers:
+        - name: shopsphereclient
+          image: shopsphereacrfs.azurecr.io/shopsphere-client:v1
+          imagePullPolicy: Always
+
+          ports:
+            - containerPort: 8080
+
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
+
+            - name: ShopSphereAPIUrl
+              valueFrom:
+                configMapKeyRef:
+                  name: shopsphereclient-configmap
+                  key: shoppingapi_url
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shopsphereclient-service
+
+spec:
+  type: LoadBalancer
+  selector:
+    app: shopsphereclient
+
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080

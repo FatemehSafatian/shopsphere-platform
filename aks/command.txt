@@ -112,7 +112,7 @@ az aks create \
   --generate-ssh-keys
 
 # =====================================================================
-# 9) Connect kubectl to the cluster ("pair the remote control with the TV")
+# 9) Connect kubectl to the cluster 
 #    Downloads server address + credentials into ~/.kube/config
 #    Without this, kubectl fails with "the server has asked for the client to provide credentials"
 # =====================================================================
