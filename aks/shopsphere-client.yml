@@ -8,7 +8,11 @@ metadata:
 
 spec:
   replicas: 1
-
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1          # create at most 1 extra pod during the update
+      maxUnavailable: 0    # never remove an old pod before a new one is Ready
   selector:
     matchLabels:
       app: shopsphereclient
