@@ -27,7 +27,7 @@ spec:
         - name: acr-secret
       containers:
         - name: shopsphereclient
-          image: shopsphereacrfs.azurecr.io/shopsphere-client:v1
+          image: shopsphereacrfs.azurecr.io/shopsphere-client:v2
           imagePullPolicy: Always
 
           ports:
