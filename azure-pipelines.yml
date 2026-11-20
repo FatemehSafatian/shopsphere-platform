@@ -1,0 +1,98 @@
+# Deploy to Azure Kubernetes Service
+# Build and push image to Azure Container Registry; Deploy to Azure Kubernetes Service
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+- main
+
+resources:
+- repo: self
+
+variables:
+
+  # Container registry service connection established during pipeline creation
+  dockerRegistryServiceConnection: 'b11a8776-7b88-484f-8ea9-612c00a474db'
+  imageRepository: 'shopsphere-api'
+  clientImageRepository: 'shopsphere-client'  
+  containerRegistry: 'shopsphereacrfs.azurecr.io'
+  dockerfilePath: '$(Build.SourcesDirectory)/ShopSphere/ShopSphere.API/Dockerfile'
+  clientDockerfilePath: '$(Build.SourcesDirectory)/ShopSphere/ShopSphere.Client/Dockerfile' 
+  buildContextPath: '$(Build.SourcesDirectory)/ShopSphere'  
+  tag: '$(Build.BuildId)'
+  imagePullSecret: 'acr-secret'
+
+  # Agent VM image name
+  vmImageName: 'ubuntu-latest'
+
+
+stages:
+- stage: Build
+  displayName: Build stage
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: Docker@2
+      displayName: Build and push an image to container registry
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        buildContext: $(buildContextPath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+    
+    - task: Docker@2                                    
+      displayName: Build and push Client image
+      inputs:
+        command: buildAndPush
+        repository: $(clientImageRepository)
+        dockerfile: $(clientDockerfilePath)
+        buildContext: $(buildContextPath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+
+
+    - upload: aks
+      artifact: manifests
+
+- stage: Deploy
+  displayName: Deploy stage
+  dependsOn: Build
+
+  jobs:
+  - deployment: Deploy
+    displayName: Deploy
+    pool:
+      vmImage: $(vmImageName)
+    environment: 'FatemehSafatianshopsphereplatform.default'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: KubernetesManifest@0
+            displayName: Create imagePullSecret
+            inputs:
+              action: createSecret
+              secretName: $(imagePullSecret)
+              dockerRegistryEndpoint: $(dockerRegistryServiceConnection)
+
+          - task: KubernetesManifest@0
+            displayName: Deploy to Kubernetes cluster
+            inputs:
+              action: deploy
+              manifests: |
+                $(Pipeline.Workspace)/manifests/mongo-secret.yaml
+                $(Pipeline.Workspace)/manifests/mongo.yml
+                $(Pipeline.Workspace)/manifests/shopsphere-client-configmap.yml
+                $(Pipeline.Workspace)/manifests/shopsphere-api.yml
+                $(Pipeline.Workspace)/manifests/shopsphere-client.yml
+              imagePullSecrets: |
+                $(imagePullSecret)
+              containers: |
+                $(containerRegistry)/$(imageRepository):$(tag)
+                $(containerRegistry)/$(clientImageRepository):$(tag)
