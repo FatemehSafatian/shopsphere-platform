@@ -46,7 +46,7 @@ stages:
           $(tag)
 
     - upload: aks
-      artifact: manifests
+      artifact: aks
 
 - stage: Deploy
   displayName: Deploy API
@@ -72,8 +72,8 @@ stages:
             inputs:
               action: deploy
               manifests: |
-                $(Pipeline.Workspace)/manifests/mongo-secret.yaml
-                $(Pipeline.Workspace)/manifests/mongo.yml
-                $(Pipeline.Workspace)/manifests/shopsphere-api.yml
+                $(Pipeline.Workspace)/aks/mongo-secret.yaml
+                $(Pipeline.Workspace)/aks/mongo.yml
+                $(Pipeline.Workspace)/aks/shopsphere-api.yml
               containers: |
                 $(containerRegistry)/$(imageRepository):$(tag)
