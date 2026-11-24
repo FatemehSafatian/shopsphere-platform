@@ -45,7 +45,7 @@ stages:
           $(tag)
 
     - upload: aks
-      artifact: manifests
+      artifact: aks
 
 - stage: Deploy
   displayName: Deploy Client
@@ -71,7 +71,7 @@ stages:
             inputs:
               action: deploy
               manifests: |
-                $(Pipeline.Workspace)/manifests/shopsphere-client-configmap.yml
-                $(Pipeline.Workspace)/manifests/shopsphere-client.yml
+                $(Pipeline.Workspace)/aks/shopsphere-client-configmap.yml
+                $(Pipeline.Workspace)/aks/shopsphere-client.yml
               containers: |
                 $(containerRegistry)/$(imageRepository):$(tag)
