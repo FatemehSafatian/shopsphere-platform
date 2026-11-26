@@ -60,14 +60,14 @@ stages:
       runOnce:
         deploy:
           steps:
-          - task: KubernetesManifest@0
+          - task: KubernetesManifest@1
             displayName: Create imagePullSecret
             inputs:
               action: createSecret
               secretName: $(imagePullSecret)
               dockerRegistryEndpoint: $(dockerRegistryServiceConnection)
 
-          - task: KubernetesManifest@0
+          - task: KubernetesManifest@1
             displayName: Deploy Mongo + API
             inputs:
               action: deploy
