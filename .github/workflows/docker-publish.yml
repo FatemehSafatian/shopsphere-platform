@@ -43,6 +43,7 @@ jobs:
             fsafa/shopsphere-api:${{ github.sha }}
             
       - name: Deploy to Azure Web App
+        if: false
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'shopsphere-app'
